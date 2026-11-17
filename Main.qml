@@ -526,7 +526,7 @@ Rectangle {
                     id: sessionPill
                     visible: typeof sessionModel !== "undefined" && sessionModel.count > 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 180
+                    Layout.preferredWidth: Math.min(300, Math.max(180, sessionRow.implicitWidth + 32))
                     Layout.preferredHeight: 36
                     color: (sessionClickArea.pressed || sessionPopup.opened) ? surfaceVariantColor : surfaceColor
                     radius: 18
@@ -537,7 +537,9 @@ Rectangle {
                     Behavior on scale { NumberAnimation { duration: 100 } }
 
                     RowLayout {
+                        id: sessionRow
                         anchors.centerIn: parent
+                        width: parent.width -24
                         spacing: 8
                         Text {
                             text: "󰟀"
@@ -545,6 +547,9 @@ Rectangle {
                             font.pixelSize: 16
                         }
                         Text {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            horizontalAlignment: Text.AlignHCenter
                             text: {
                                 if (typeof sessionModel !== "undefined" && sessionModel.count > 0) {
                                     var idx = container.sessionIndex;
@@ -570,16 +575,33 @@ Rectangle {
                     }
                 }
 
-                TextField {
+                                TextField {
                     id: passwordField
                     Layout.topMargin: 30 // Keeps space above it static
                     echoMode: TextInput.Password
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     font.pixelSize: 18
-                    color: "white"
+                    color: "transparent"
+                    selectionColor: "transparent"
+                    selectedTextColor: "transparent"
+                    cursorVisible: false
                     focus: loginState.visible
                     enabled: !container.isLoggingIn
+
+                    // 0: Circle, 1: Square, 2: Triangle, 3: Diamond, 4: Pentagon, 5: Hexagon, 6: Star
+                    property var charShapes: []
+
+                    onTextChanged: {
+                        var arr = charShapes.slice();
+                        while (arr.length < text.length) {
+                            arr.push(Math.floor(Math.random() * 7));
+                        }
+                        if (arr.length > text.length) {
+                            arr = arr.slice(0, text.length);
+                        }
+                        charShapes = arr;
+                    }
 
                     background: Rectangle {
                         color: surfaceColor
@@ -587,6 +609,85 @@ Rectangle {
                         border.width: parent.activeFocus ? 2 : 0
                         border.color: container.extractedAccent
                         opacity: parent.enabled ? 1.0 : 0.5
+                    }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        visible: passwordField.text.length > 0
+
+                        Repeater {
+                            model: passwordField.charShapes.length
+                            Canvas {
+                                width: 14
+                                height: 14
+                                property int shapeType: passwordField.charShapes[index] !== undefined ? passwordField.charShapes[index] : 0
+                                property color fillCol: container.extractedAccent
+
+                                onShapeTypeChanged: requestPaint()
+                                onFillColChanged: requestPaint()
+                                Component.onCompleted: requestPaint()
+
+                                onPaint: {
+                                    var ctx = getContext("2d");
+                                    ctx.reset();
+                                    ctx.fillStyle = fillCol;
+                                    var cx = width / 2;
+                                    var cy = height / 2;
+                                    var r = width * 0.45;
+
+                                    ctx.beginPath();
+                                    if (shapeType === 0) {
+                                        // Circle
+                                        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                                    } else if (shapeType === 1) {
+                                        // Rounded Square
+                                        ctx.roundedRect(cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7, 3, 3);
+                                    } else if (shapeType === 2) {
+                                        // Triangle
+                                        for (var i = 0; i < 3; i++) {
+                                            var a = (i * 2 * Math.PI / 3) - Math.PI / 2;
+                                            var x = cx + r * 1.1 * Math.cos(a);
+                                            var y = cy + r * 1.1 * Math.sin(a) + 1;
+                                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                                        }
+                                    } else if (shapeType === 3) {
+                                        // Diamond
+                                        ctx.moveTo(cx, cy - r * 1.1);
+                                        ctx.lineTo(cx + r * 1.1, cy);
+                                        ctx.lineTo(cx, cy + r * 1.1);
+                                        ctx.lineTo(cx - r * 1.1, cy);
+                                    } else if (shapeType === 4) {
+                                        // Pentagon
+                                        for (var j = 0; j < 5; j++) {
+                                            var ap = (j * 2 * Math.PI / 5) - Math.PI / 2;
+                                            var xp = cx + r * 1.05 * Math.cos(ap);
+                                            var yp = cy + r * 1.05 * Math.sin(ap);
+                                            if (j === 0) ctx.moveTo(xp, yp); else ctx.lineTo(xp, yp);
+                                        }
+                                    } else if (shapeType === 5) {
+                                        // Hexagon
+                                        for (var k = 0; k < 6; k++) {
+                                            var ah = (k * 2 * Math.PI / 6);
+                                            var xh = cx + r * 1.05 * Math.cos(ah);
+                                            var yh = cy + r * 1.05 * Math.sin(ah);
+                                            if (k === 0) ctx.moveTo(xh, yh); else ctx.lineTo(xh, yh);
+                                        }
+                                    } else {
+                                        // 4-Point Material Star
+                                        for (var s = 0; s < 8; s++) {
+                                            var rad = (s % 2 === 0) ? r * 1.15 : r * 0.45;
+                                            var as = s * Math.PI / 4;
+                                            var xs = cx + rad * Math.cos(as);
+                                            var ys = cy + rad * Math.sin(as);
+                                            if (s === 0) ctx.moveTo(xs, ys); else ctx.lineTo(xs, ys);
+                                        }
+                                    }
+                                    ctx.closePath();
+                                    ctx.fill();
+                                }
+                            }
+                        }
                     }
 
                     Text {
@@ -600,6 +701,7 @@ Rectangle {
 
                     onAccepted: container.doLogin()
                 }
+
 
                 Text {
                     id: numLockIndicator
